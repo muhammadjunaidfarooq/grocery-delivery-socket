@@ -63,12 +63,14 @@ app.get("/health", health);
 // The Next.js API calls this to push an event to one socket or to everyone
 app.post("/notify", (req, res) => {
   if (!SOCKET_SERVER_SECRET || req.get("x-socket-secret") !== SOCKET_SERVER_SECRET) {
+    console.warn("[notify] rejected: invalid socket secret (check SOCKET_SERVER_SECRET on Vercel and Render)");
     return res.status(401).json({ success: false, message: "invalid socket secret" });
   }
   const { event, data, socketId } = req.body || {};
   if (!event) {
     return res.status(400).json({ success: false, message: "event is required" });
   }
+  console.log(`[notify] ${event} -> ${socketId || "everyone"} (${io.engine.clientsCount} connected)`);
   if (socketId) {
     io.to(socketId).emit(event, data);
   } else {
@@ -78,11 +80,13 @@ app.post("/notify", (req, res) => {
 });
 
 io.on("connection", (socket) => {
+  console.log(`[connect] ${socket.id} from ${socket.handshake.headers.origin || "unknown origin"}`);
   // A logged-in browser tells us which user it is, so the app can reach it later
   socket.on("identity", async (userId) => {
     if (!userId) return;
     try {
       await api.post("/api/socket/connect", { userId, socketId: socket.id });
+      console.log(`[identity] user ${userId} -> ${socket.id}`);
     } catch (error) {
       logApiError("identity", error);
     }
